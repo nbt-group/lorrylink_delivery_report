@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RT LorryLink - Delivery Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --ink:#16262c; --ink-2:#3b4a52; --muted:#66757e;
+    --line:#dbe1e5; --line-strong:#c4ccd2;
+    --page:#edf0f2; --surface:#fff; --surface-2:#f6f8f9;
+    --harbour:#123540; --harbour-hover:#0c2730;
+    --road:#f0b323; --road-soft:#fdf3d6; --road-ink:#5a4100;
+    --go:#1d7a4c; --go-soft:#e3f3ea; --go-ink:#0f4d2f;
+    --info:#1f5f8b; --info-soft:#e4eff7;
+    --stop:#b3261e;
+    --shadow:0 1px 2px rgba(18,53,64,.06), 0 6px 16px -10px rgba(18,53,64,.18);
+  }
+  *, *::before, *::after { box-sizing:border-box; }
+  body { margin:0; font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size:14px; color:var(--ink); background:var(--page); -webkit-font-smoothing:antialiased; }
+  .hidden { display:none !important; }
+
+  /* Header */
+  header { background:var(--harbour); color:#fff; padding:12px 24px; border-bottom:3px solid var(--road); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .brand-mark { width:34px; height:34px; display:grid; place-items:center; background:var(--road); color:var(--harbour); border-radius:9px; font-size:20px; }
+  .brand-name { font-size:1.05rem; font-weight:700; }
+  .brand-sub { font-weight:400; opacity:.75; margin-left:6px; }
+
+  main { max-width:1280px; margin:0 auto; padding:20px 24px 40px; display:flex; flex-direction:column; gap:16px; }
+
+  /* Generic */
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:18px; }
+  label { display:block; font-size:.75rem; font-weight:600; margin-bottom:5px; color:var(--ink-2); }
+  input, button, select { font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  input { font-size:14px; font-weight:400; letter-spacing:normal; }
+  input::-webkit-datetime-edit, input::-webkit-datetime-edit-fields-wrapper, input::-webkit-datetime-edit-day-field,
+  input::-webkit-datetime-edit-month-field, input::-webkit-datetime-edit-year-field, input::-webkit-datetime-edit-text {
+    font-family:inherit; font-size:14px; font-weight:400; color:var(--ink);
+  }
+  input::placeholder { font-family:inherit; font-size:14px; font-weight:400; color:#93a0a8; opacity:1; }
+  input { color:var(--ink); height:40px; padding:0 12px; border:1px solid var(--line-strong); border-radius:8px; background:#fff; width:100%; transition:border-color .15s, box-shadow .15s; }
+  input:hover { border-color:var(--ink-2); }
+  input:focus { outline:none; border-color:var(--info); box-shadow:0 0 0 3px rgba(31,95,139,.18); }
+  button { font-size:14px; font-weight:600; height:40px; padding:0 16px; border-radius:8px; border:1px solid var(--line-strong); background:#fff; color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:background .15s, border-color .15s; }
+  button:hover { background:var(--surface-2); border-color:var(--ink-2); }
+  button.primary { background:var(--harbour); color:#fff; border-color:var(--harbour); }
+  button.primary:hover { background:var(--harbour-hover); }
+  .err { color:var(--stop); margin-top:10px; font-size:.85rem; }
+  .muted { color:var(--muted); }
+
+  /* Login */
+  .login { max-width:380px; width:100%; margin:48px auto; padding:26px; }
+  .login h2 { margin:0 0 4px; font-size:1.4rem; }
+  .login p { margin:0 0 18px; color:var(--muted); }
+  .login .f { margin-bottom:14px; }
+  .login button { width:100%; justify-content:center; height:44px; }
+
+  /* Filters */
+  .filters { display:flex; flex-direction:column; gap:14px; }
+  .filters-top { display:grid; grid-template-columns:170px 170px 1fr; gap:14px; }
+  .search-wrap { position:relative; }
+  .search-wrap i { position:absolute; left:12px; bottom:11px; color:var(--muted); font-size:18px; pointer-events:none; }
+  .search-wrap input { padding-left:38px; }
+  .filters-bottom { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { height:34px; padding:0 14px; border-radius:999px; font-size:13px; font-weight:500; }
+  .chip.is-active { font-weight:600; }
+  .chip.is-active { background:var(--ink); border-color:var(--ink); color:#fff; }
+  .actions { display:flex; gap:8px; }
+  .range-text { font-size:.8125rem; color:var(--muted); }
+
+  /* Summary cards */
+  .cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; display:flex; align-items:center; gap:14px; border-left:4px solid var(--line-strong); }
+  .card .ic { width:42px; height:42px; border-radius:10px; display:grid; place-items:center; font-size:22px; flex-shrink:0; }
+  .card b { display:block; font-size:1.45rem; line-height:1.15; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .card span { font-size:.78rem; color:var(--muted); font-weight:500; }
+  .card.c-jobs { border-left-color:var(--info); } .c-jobs .ic { background:var(--info-soft); color:var(--info); }
+  .card.c-qty { border-left-color:var(--road); } .c-qty .ic { background:var(--road-soft); color:var(--road-ink); }
+  .card.c-cost { border-left-color:var(--ink-2); } .c-cost .ic { background:#e9edf0; color:var(--ink-2); }
+  .card.c-profit { border-left-color:var(--go); } .c-profit .ic { background:var(--go-soft); color:var(--go); } .c-profit b { color:var(--go-ink); }
+
+  /* Table */
+  .tablebox { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
+  .tablewrap { overflow:auto; max-height:calc(100vh - 430px); min-height:160px; }
+  table { border-collapse:separate; border-spacing:0; width:100%; }
+  th, td { padding:11px 14px; text-align:left; white-space:nowrap; border-bottom:1px solid var(--line); }
+  th { background:var(--surface-2); font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2); position:sticky; top:0; z-index:3; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tbody tr:nth-child(even) td { background:#fbfcfc; }
+  tbody tr:hover td { background:var(--info-soft); }
+  #totalrow td { position:sticky; top:var(--head-h, 38px); z-index:2; background:var(--road-soft); font-weight:700; border-bottom:2px solid var(--road); }
+  #totalrow td.profit { color:var(--go-ink); }
+  td.profit { color:var(--go-ink); font-weight:600; }
+  td.date { font-weight:600; }
+  td.route { white-space:normal; min-width:160px; }
+  .badge { display:inline-flex; align-items:center; gap:4px; font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--go-soft); color:var(--go-ink); margin-left:6px; }
+  .badge.warn { background:var(--road-soft); color:var(--road-ink); margin-left:0; }
+  tbody tr.nobid td { background:var(--road-soft) !important; }
+  .badge.ext { background:var(--info-soft); color:var(--info); margin-left:0; }
+  .badge.int { background:#e9edf0; color:var(--ink-2); margin-left:0; }
+  .empty { text-align:center; padding:48px 16px !important; color:var(--muted); }
+  .empty i { display:block; font-size:30px; color:var(--line-strong); margin-bottom:6px; }
+
+  @media (max-width:900px) {
+    .cards { grid-template-columns:1fr; }
+    .filters-top { grid-template-columns:1fr 1fr; }
+    .search-wrap { grid-column:1 / -1; }
+    main { padding:14px; }
+    .tablewrap { max-height:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark"><i class="ri-truck-line"></i></span>
+    <span class="brand-name">RT LorryLink<span class="brand-sub">Delivery Report</span></span>
+  </div>
+  <button id="logout" class="hidden"><i class="ri-logout-box-r-line"></i> Log out</button>
+</header>
+
+<main>
+  <!-- LOGIN -->
+  <div id="login-view" class="panel login">
+    <h2>Admin login</h2>
+    <p>Sign in to view the delivery report.</p>
+    <form id="login-form">
+      <div class="f"><label for="email">Email</label><input type="email" id="email" required autocomplete="email"></div>
+      <div class="f"><label for="password">Password</label><input type="password" id="password" required autocomplete="current-password"></div>
+      <button class="primary" type="submit">Log in</button>
+      <div id="login-err" class="err"></div>
+    </form>
+  </div>
+
+  <!-- REPORT -->
+  <div id="report-view" class="hidden" style="display:none;flex-direction:column;gap:16px">
+    <div class="panel filters">
+      <div class="filters-top">
+        <div><label for="from">Delivery from</label><input type="date" id="from"></div>
+        <div><label for="to">Delivery to</label><input type="date" id="to"></div>
+        <div class="search-wrap"><label for="q">Search</label><i class="ri-search-line"></i><input type="search" id="q" placeholder="PO number, location, item, transporter..." autocomplete="off"></div>
+      </div>
+      <div class="filters-bottom">
+        <div class="chips">
+          <button class="chip" id="btn-today">Today</button>
+          <button class="chip" id="btn-thismonth">This month</button>
+          <button class="chip" id="btn-lastmonth">Last month</button>
+          <button class="chip" id="btn-all">All</button>
+        </div>
+        <div class="actions">
+          <button id="btn-reload"><i class="ri-refresh-line"></i> Reload</button>
+          <button id="btn-csv" class="primary"><i class="ri-download-2-line"></i> Download CSV</button>
+        </div>
+      </div>
+      <div id="status" class="range-text"></div>
+    </div>
+
+    <div class="cards" id="summary"></div>
+
+    <div class="tablebox">
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Delivery date</th><th>Item type</th><th class="num">Qty</th>
+              <th>Source</th><th>Destination</th>
+              <th class="num">Cost (RM)</th><th class="num">Profit (RM)</th>
+              <th>PO number</th><th>Type</th><th>Transporter</th>
+            </tr>
+            <tr id="totalrow"></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ==========================================
+// CONFIG
+// ==========================================
+const SUPABASE_URL = 'https://cqbuguapyeyshujhkvky.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxYnVndWFweWV5c2h1amhrdmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2OTI5NTQsImV4cCI6MjEwMDI2ODk1NH0.C2EuPMe1ijXCcgJ300iGs-yjyVOs4lC-TuwGu33WAsc';
+const ADMIN_EMAIL = 'pyh@nbt.com';
+
+// Name of the column in the jobs table that holds the PO number (e.g. 'po_number').
+// Leave '' to let the page look for it automatically.
+const PO_FIELD = '';
+
+// Own lorry (our company's transporter account).
+// Match by transporters.id (uuid) or by company name (case-insensitive). Either one is enough.
+// Every job done by an own lorry counts as a customer job, whatever its PO number or date.
+const OWN_TRANSPORTER_IDS = ['caaa854d-ba4c-4ed5-9435-b051840669ac'];   // Rentak Tegap
+const OWN_TRANSPORTER_NAMES = ['Rentak Tegap'];
+
+// Profit rules (RM = the awarded price)
+const MARGIN_SUBCONTRACT = 0.21;  // other transporter: cost = RM, profit = RM * 0.21
+const MARGIN_OWN = 1.21;          // own lorry:        cost = 0,  profit = RM * 1.21
+
+// Only jobs whose PO number starts with this are outside customers' jobs (they earn profit).
+// Every other job is internal: it only costs money, so profit is 0.
+const EXTERNAL_PO_PREFIX = 'PT';
+
+// From this delivery date onward, EVERY job counts as an outside customer's job (even our own company's),
+// whatever its PO number looks like. Before this date, only the PO prefix above counts.
+const ALL_EXTERNAL_FROM = '2026-11-01';
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = (id) => document.getElementById(id);
+let allRows = [];
+let poWarning = '';
+let noBidCount = 0;
+let onlyNoBid = false;
+
+// ==========================================
+// HELPERS
+// ==========================================
+const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const money = (n) => Number(n).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ymd = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
+const round2 = (n) => Math.round(n * 100) / 100;
+const fmtDate = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+  if (!m) return s || '';
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+// Finds the PO number on a job row (old version of the app: PO number is a column on jobs)
+function poOf(job) {
+  if (PO_FIELD) return String(job[PO_FIELD] ?? '').trim();
+  const keys = Object.keys(job);
+  const key = keys.find(k => /^po$/i.test(k))
+    || keys.find(k => /^po[_ ]?(no|num|number|ref)$/i.test(k))
+    || keys.find(k => /(customer|cust)[_ ]?po/i.test(k) && !/url|file|photo|at$/i.test(k))
+    || keys.find(k => /po[_ ]?(no|num|number)/i.test(k) && !/url|file|photo|at$/i.test(k));
+  return key ? String(job[key] ?? '').trim() : '';
+}
+
+function isOwn(tp) {
+  if (!tp) return false;
+  if (OWN_TRANSPORTER_IDS.includes(tp.id)) return true;
+  const name = String(tp.company_name || '').trim().toLowerCase();
+  return OWN_TRANSPORTER_NAMES.some(n => n.trim().toLowerCase() === name);
+}
+
+function stopsOf(job) {
+  let raw = job.extra_stops;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = []; } }
+  return Array.isArray(raw) ? raw.filter(s => s && s.loc).map(s => s.loc) : [];
+}
+
+async function fetchAll(build) {
+  const out = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await build().range(from, from + size - 1);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < size) break;
+  }
+  return out;
+}
+
+// ==========================================
+// LOAD DATA (read only)
+// ==========================================
+async function loadData() {
+  $('status').textContent = 'Loading...';
+  try {
+    // Start from the jobs themselves: every job that has an accepted price is a successful deal
+    // (archived ones included). The bids are only used to find who the transporter was.
+    const jobs = await fetchAll(() => db.from('jobs')
+      .select('*')
+      .not('accepted_price', 'is', null)
+      .gt('accepted_price', 0)
+      .order('id'));
+    const bids = await fetchAll(() => db.from('bids')
+      .select('*')
+      .order('id'));
+    const tps = await fetchAll(() => db.from('transporters').select('id, company_name').order('id'));
+    const tpById = new Map(tps.map(t => [t.id, t]));
+    const bidsByJob = new Map();
+    for (const b of bids) {
+      const k = String(b.job_id);
+      if (!bidsByJob.has(k)) bidsByJob.set(k, []);
+      bidsByJob.get(k).push(b);
+    }
+
+    allRows = [];
+    let noBid = 0;
+    for (const j of jobs) {
+      const list = bidsByJob.get(String(j.id)) || [];
+      // the awarded bid; if none is marked accepted, fall back to a bid at exactly the accepted price
+      let b = list.find(x => x.status === 'accepted')
+        || list.find(x => Number(x.proposed_price) === Number(j.accepted_price));
+      const missing = !b || b.status !== 'accepted';
+      if (missing) noBid++;
+      b = b || {};
+      const tp = tpById.get(b.transporter_id);
+      const own = isOwn(tp);
+      const price = Number(j.accepted_price);
+      const cost = own ? 0 : price;
+      const po = poOf(j);
+      const date = b.proposed_date || j.delivery_date || '';
+      // own lorry jobs always count as customer jobs; otherwise by date or PO prefix
+      const external = own
+        || (date && date >= ALL_EXTERNAL_FROM)
+        || po.toUpperCase().startsWith(EXTERNAL_PO_PREFIX.toUpperCase());
+      // internal job: cost only, no profit. external job: profit rules apply.
+      const profit = external ? round2(price * (own ? MARGIN_OWN : MARGIN_SUBCONTRACT)) : 0;
+      allRows.push({
+        date,
+        item: String(j.item_desc || '').replace(/^Others:\s*/, ''),
+        qty: Number(j.quantity) || 0,
+        source: j.source_loc || '',
+        dest: [j.dest_loc, ...stopsOf(j)].join(' / '),
+        cost: round2(cost),
+        profit,
+        po,
+        external,
+        noBid: missing,
+        transporter: tp ? tp.company_name : '',
+        own
+      });
+    }
+    allRows.sort((a, b) => b.date.localeCompare(a.date));
+    // Tell the user if no PO column could be found, and which columns the jobs table has
+    const sample = jobs[0];
+    poWarning = '';
+    if (sample) {
+      const cols = Object.keys(sample);
+      console.log('jobs columns:', cols);
+      if (PO_FIELD ? !(PO_FIELD in sample) : !allRows.some(r => r.po)) {
+        poWarning = 'No PO number column found in the jobs table. Columns: ' + cols.join(', ') + '. Set PO_FIELD at the top of report.html.';
+      }
+    }
+    render();
+  } catch (e) {
+    console.error(e);
+    $('status').innerHTML = '<span class="err">Failed to load data: ' + esc(e.message || e) + '</span>';
+  }
+}
+
+// ==========================================
+// FILTER + RENDER
+// ==========================================
+function filtered() {
+  const from = $('from').value, to = $('to').value;
+  const words = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return allRows.filter(r => {
+    if (from && (!r.date || r.date < from)) return false;
+    if (to && (!r.date || r.date > to)) return false;
+    if (words.length) {
+      const hay = [r.item, r.source, r.dest, r.po, r.transporter].join(' ').toLowerCase();
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+}
+
+function rangeFor(offset) {
+  const now = new Date(ymd(new Date()) + 'T00:00:00');
+  const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+  const f = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return [f(first), f(last)];
+}
+
+function updateChips() {
+  const from = $('from').value, to = $('to').value;
+  const today = ymd(new Date());
+  const [tf, tt] = rangeFor(0), [lf, lt] = rangeFor(-1);
+  $('btn-today').classList.toggle('is-active', from === today && to === today);
+  $('btn-thismonth').classList.toggle('is-active', from === tf && to === tt);
+  $('btn-lastmonth').classList.toggle('is-active', from === lf && to === lt);
+  $('btn-all').classList.toggle('is-active', !from && !to);
+}
+
+function render() {
+  const rows = filtered();
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const totalProfit = rows.reduce((s, r) => s + r.profit, 0);
+
+  const from = $('from').value, to = $('to').value;
+  const rangeText = (from || to) ? `${from ? fmtDate(from) : 'Start'} - ${to ? fmtDate(to) : 'Today'}` : 'All dates';
+  $('status').textContent = `${rangeText} · ${rows.length} job${rows.length === 1 ? '' : 's'}`;
+  if (poWarning) {
+    const w = document.createElement('div');
+    w.className = 'err';
+    w.textContent = poWarning;
+    $('status').appendChild(w);
+  }
+  updateChips();
+
+  $('summary').innerHTML =
+    `<div class="card c-jobs"><div class="ic"><i class="ri-truck-line"></i></div><div><b>${rows.length}</b><span>Jobs</span></div></div>` +
+    `<div class="card c-cost"><div class="ic"><i class="ri-wallet-3-line"></i></div><div><b>RM ${money(totalCost)}</b><span>Total cost</span></div></div>` +
+    `<div class="card c-profit"><div class="ic"><i class="ri-line-chart-line"></i></div><div><b>RM ${money(totalProfit)}</b><span>Total profit</span></div></div>`;
+
+  $('rows').innerHTML = rows.length ? rows.map(r => `
+    <tr>
+      <td class="date">${esc(fmtDate(r.date))}</td>
+      <td>${esc(r.item)}</td>
+      <td class="num">${r.qty}</td>
+      <td class="route">${esc(r.source)}</td>
+      <td class="route">${esc(r.dest)}</td>
+      <td class="num">${money(r.cost)}</td>
+      <td class="num profit">${money(r.profit)}</td>
+      <td>${r.po ? esc(r.po) : '<span class="muted">-</span>'}</td>
+      <td>${r.external ? '<span class="badge ext">Customer</span>' : '<span class="badge int">Internal</span>'}</td>
+      <td>${esc(r.transporter)}${r.own ? '<span class="badge"><i class="ri-truck-fill"></i>Own lorry</span>' : ''}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="10" class="empty"><i class="ri-inbox-line"></i>No jobs in this range.</td></tr>';
+
+  $('totalrow').innerHTML = rows.length
+    ? `<td colspan="5">Total</td><td class="num">${money(totalCost)}</td><td class="num profit">${money(totalProfit)}</td><td colspan="3"></td>`
+    : '';
+  // keep the Total row right under the header row
+  const headRow = document.querySelector('thead tr');
+  if (headRow) document.documentElement.style.setProperty('--head-h', headRow.offsetHeight + 'px');
+}
+
+// ==========================================
+// CSV (opens correctly in Excel)
+// ==========================================
+function downloadCsv() {
+  const rows = filtered();
+  const head = ['Delivery date','Item type','Qty','Source','Destination','Cost (RM)','Profit (RM)','PO number','Type','Transporter'];
+  const cell = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [head.map(cell).join(',')].concat(rows.map(r =>
+    [r.date, r.item, r.qty, r.source, r.dest, r.cost.toFixed(2), r.profit.toFixed(2), r.po, r.external ? 'Customer' : 'Internal', r.transporter + (r.own ? ' (own lorry)' : '')].map(cell).join(',')));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `delivery-report-${$('from').value || 'all'}_${$('to').value || 'all'}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ==========================================
+// QUICK DATE BUTTONS
+// ==========================================
+function setRange(from, to) { $('from').value = from; $('to').value = to; render(); }
+function monthRange(offset) { const [f, t] = rangeFor(offset); setRange(f, t); }
+
+// ==========================================
+// AUTH
+// ==========================================
+async function showReport() {
+  $('login-view').classList.add('hidden');
+  const rv = $('report-view');
+  rv.classList.remove('hidden');
+  rv.style.display = 'flex';
+  $('logout').classList.remove('hidden');
+  monthRange(0);
+  await loadData();
+}
+
+async function checkSession() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session && session.user.email === ADMIN_EMAIL) showReport();
+}
+
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('login-err').textContent = '';
+  const { data, error } = await db.auth.signInWithPassword({ email: $('email').value, password: $('password').value });
+  if (error) { $('login-err').textContent = error.message; return; }
+  if (data.user.email !== ADMIN_EMAIL) {
+    await db.auth.signOut();
+    $('login-err').textContent = 'This account is not allowed to view the report.';
+    return;
+  }
+  $('password').value = '';
+  showReport();
+});
+
+$('logout').addEventListener('click', async () => {
+  await db.auth.signOut();
+  allRows = [];
+  const rv = $('report-view');
+  rv.classList.add('hidden');
+  rv.style.display = 'none';
+  $('logout').classList.add('hidden');
+  $('login-view').classList.remove('hidden');
+});
+
+['from', 'to'].forEach(id => $(id).addEventListener('change', render));
+$('q').addEventListener('input', render);
+$('btn-today').addEventListener('click', () => { const t = ymd(new Date()); setRange(t, t); });
+$('btn-thismonth').addEventListener('click', () => monthRange(0));
+$('btn-lastmonth').addEventListener('click', () => monthRange(-1));
+$('btn-all').addEventListener('click', () => setRange('', ''));
+$('btn-csv').addEventListener('click', downloadCsv);
+$('btn-reload').addEventListener('click', loadData);
+
+checkSession();
+</script>
+</body>
+</html>
