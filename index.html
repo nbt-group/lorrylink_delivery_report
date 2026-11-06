@@ -79,7 +79,7 @@
   .cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
   .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; display:flex; align-items:center; gap:14px; border-left:4px solid var(--line-strong); }
   .card .ic { width:42px; height:42px; border-radius:10px; display:grid; place-items:center; font-size:22px; flex-shrink:0; }
-  .card b { display:block; font-size:1.45rem; line-height:1.15; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .card b { display:block; font-size:1.7rem; line-height:1.15; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
   .card span { font-size:.78rem; color:var(--muted); font-weight:500; }
   .card.c-jobs { border-left-color:var(--info); } .c-jobs .ic { background:var(--info-soft); color:var(--info); }
   .card.c-qty { border-left-color:var(--road); } .c-qty .ic { background:var(--road-soft); color:var(--road-ink); }
@@ -88,10 +88,10 @@
 
   /* Table */
   .tablebox { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
-  .tablewrap { overflow:auto; max-height:calc(100vh - 430px); min-height:160px; }
-  table { border-collapse:separate; border-spacing:0; width:100%; }
-  th, td { padding:11px 14px; text-align:left; white-space:nowrap; border-bottom:1px solid var(--line); }
-  th { background:var(--surface-2); font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2); position:sticky; top:0; z-index:3; }
+  .tablewrap { overflow:auto; max-height:calc(100vh - 240px); min-height:520px; }
+  table { border-collapse:separate; border-spacing:0; width:100%; font-size:16px; }
+  th, td { padding:15px 18px; text-align:left; white-space:nowrap; border-bottom:1px solid var(--line); }
+  th { background:var(--surface-2); font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2); position:sticky; top:0; z-index:3; }
   td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
   tbody tr:nth-child(even) td { background:#fbfcfc; }
   tbody tr:hover td { background:var(--info-soft); }
@@ -99,8 +99,8 @@
   #totalrow td.profit { color:var(--go-ink); }
   td.profit { color:var(--go-ink); font-weight:600; }
   td.date { font-weight:600; }
-  td.route { white-space:normal; min-width:160px; }
-  .badge { display:inline-flex; align-items:center; gap:4px; font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--go-soft); color:var(--go-ink); margin-left:6px; }
+  td.route { white-space:normal; min-width:190px; }
+  .badge { display:inline-flex; align-items:center; gap:4px; font-size:.8rem; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--go-soft); color:var(--go-ink); margin-left:6px; }
   .badge.warn { background:var(--road-soft); color:var(--road-ink); margin-left:0; }
   tbody tr.nobid td { background:var(--road-soft) !important; }
   .badge.ext { background:var(--info-soft); color:var(--info); margin-left:0; }
@@ -194,7 +194,7 @@ const ADMIN_EMAIL = 'pyh@nbt.com';
 
 // Name of the column in the jobs table that holds the PO number (e.g. 'po_number').
 // Leave '' to let the page look for it automatically.
-const PO_FIELD = '';
+const PO_FIELD = 'po_number';
 
 // Own lorry (our company's transporter account).
 // Match by transporters.id (uuid) or by company name (case-insensitive). Either one is enough.
@@ -209,10 +209,6 @@ const MARGIN_OWN = 1.21;          // own lorry:        cost = 0,  profit = RM * 
 // Only jobs whose PO number starts with this are outside customers' jobs (they earn profit).
 // Every other job is internal: it only costs money, so profit is 0.
 const EXTERNAL_PO_PREFIX = 'PT';
-
-// From this delivery date onward, EVERY job counts as an outside customer's job (even our own company's),
-// whatever its PO number looks like. Before this date, only the PO prefix above counts.
-const ALL_EXTERNAL_FROM = '2026-11-01';
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (id) => document.getElementById(id);
@@ -252,8 +248,9 @@ function isOwn(tp) {
   return OWN_TRANSPORTER_NAMES.some(n => n.trim().toLowerCase() === name);
 }
 
+// All drop-off locations of a job. New structure: jobs.stops = [{loc, link}, ...] (the first one was dest_loc).
 function stopsOf(job) {
-  let raw = job.extra_stops;
+  let raw = job.stops;
   if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = []; } }
   return Array.isArray(raw) ? raw.filter(s => s && s.loc).map(s => s.loc) : [];
 }
@@ -311,9 +308,8 @@ async function loadData() {
       const cost = own ? 0 : price;
       const po = poOf(j);
       const date = b.proposed_date || j.delivery_date || '';
-      // own lorry jobs always count as customer jobs; otherwise by date or PO prefix
+      // own lorry jobs always count as customer jobs; otherwise only the PO prefix counts (no date rule)
       const external = own
-        || (date && date >= ALL_EXTERNAL_FROM)
         || po.toUpperCase().startsWith(EXTERNAL_PO_PREFIX.toUpperCase());
       // internal job: cost only, no profit. external job: profit rules apply.
       const profit = external ? round2(price * (own ? MARGIN_OWN : MARGIN_SUBCONTRACT)) : 0;
@@ -322,7 +318,7 @@ async function loadData() {
         item: String(j.item_desc || '').replace(/^Others:\s*/, ''),
         qty: Number(j.quantity) || 0,
         source: j.source_loc || '',
-        dest: [j.dest_loc, ...stopsOf(j)].join(' / '),
+        dest: stopsOf(j).join(' / '),
         cost: round2(cost),
         profit,
         po,
